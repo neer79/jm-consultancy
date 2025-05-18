@@ -1,86 +1,106 @@
 'use client';
-import React from 'react';
+import React, { useState, useRef } from 'react';
+import emailjs from '@emailjs/browser';
+import ReCAPTCHA from 'react-google-recaptcha';
+import { Toaster, toast } from 'sonner';
 
 export default function HomePage() {
+  const [form, setForm] = useState({ name: '', email: '', message: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+
+  const validateForm = () => form.name && form.email && form.message;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
+
+    const token = await recaptchaRef.current?.executeAsync();
+    if (!token) {
+      toast.error('Please verify reCAPTCHA.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const result = await emailjs.send(
+        process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
+        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
+        { ...form, 'g-recaptcha-response': token },
+        process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!
+      );
+
+      if (result.status === 200) {
+        toast.success('Message sent successfully!');
+        setForm({ name: '', email: '', message: '' });
+        recaptchaRef.current?.reset();
+      } else {
+        toast.error('Failed to send message.');
+      }
+    } catch (error) {
+      toast.error('An unexpected error occurred.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-6 text-center space-y-16">
-      {/* Hero Section */}
-      <header className="py-10">
-        <h1 className="text-4xl font-bold mb-4">JM Consultancy</h1>
-        <p className="text-lg text-gray-700 mb-6">
-          Your Trusted Partner for Identity & Access Management and Cybersecurity Solutions
-        </p>
-        <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
-          Get in Touch
-        </button>
-      </header>
+      <Toaster position="bottom-right" richColors />
 
-      {/* About Section */}
-      <section className="bg-white p-8 rounded-lg shadow-md max-w-3xl mx-auto">
-        <h2 className="text-3xl font-semibold mb-4">About Us</h2>
-        <p className="text-gray-700 leading-relaxed">
-          Highly accomplished IAM Architect and Cybersecurity Specialist with over 16 years of global experience. 
-          Specializing in Microsoft Entra (Azure AD), SailPoint IdentityIQ, PlainID, and Okta. 
-          Dedicated to delivering enterprise-level IAM solutions, cloud security architecture, 
-          and Zero Trust implementations.
-        </p>
-      </section>
-
-      {/* Services Section */}
-      <section className="bg-white p-8 rounded-lg shadow-md max-w-3xl mx-auto">
-        <h2 className="text-3xl font-semibold mb-4">Our Services</h2>
-        <ul className="text-gray-700 text-left list-disc list-inside space-y-2">
-          <li>Identity & Access Management (IAM)</li>
-          <li>Cybersecurity Operations & Consultation</li>
-          <li>Cloud Security Architecture</li>
-          <li>Policy-Based Access Control (PBAC)</li>
-          <li>CI/CD Pipeline & DevOps Automation</li>
-          <li>Advanced Threat Detection & Response</li>
-        </ul>
-      </section>
-
-      {/* Contact Section */}
+      {/* Contact Form Section */}
       <section className="bg-white p-8 rounded-lg shadow-md max-w-3xl mx-auto">
         <h2 className="text-3xl font-semibold mb-4">Contact Us</h2>
-        <form
-          action="https://formspree.io/f/meogndvp" 
-          method="POST" 
-          className="space-y-4 text-left"
-        >
+        <form onSubmit={handleSubmit} className="space-y-4 text-left">
           <input
             type="text"
             name="name"
             placeholder="Your Name"
-            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
             className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
           />
           <input
             type="email"
             name="email"
             placeholder="Your Email"
-            required
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
             className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
           />
           <textarea
             name="message"
             placeholder="Your Message"
-            required
+            value={form.message}
+            onChange={(e) => setForm({ ...form, message: e.target.value })}
             rows={4}
             className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
           ></textarea>
+
+          {/* reCAPTCHA */}
+          <ReCAPTCHA
+            sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
+            size="invisible"
+            ref={recaptchaRef}
+          />
+
           <button
             type="submit"
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition w-full"
+            disabled={submitting}
           >
-            Send Message
+            {submitting ? 'Sending...' : 'Send Message'}
           </button>
         </form>
       </section>
-
-      {/* Footer */}
-      <footer className="text-center py-6 border-t text-gray-600">
-        © 2025 JM Consultancy. All rights reserved.
-      </footer>
     </div>
   );
 }
